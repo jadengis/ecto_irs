@@ -1,7 +1,28 @@
 defmodule EctoIRS.Schema do
   @moduledoc """
-  Ecto schema extensions for auditing capabilities.
+  `Ecto.Schema` extensions for auditing capabilities.
   """
+
+  @opts_schema [
+    inserted_by: [
+      type: {:or, [:atom, {:in, [false]}]},
+      default: :inserted_by,
+      doc: "the Ecto schema name of the field for insertion times or `false`"
+    ],
+    updated_by: [
+      type: {:or, [:atom, {:in, [false]}]},
+      default: :updated_by,
+      doc: "the Ecto schema name of the field for update times or `false`"
+    ],
+    references: [
+      type: :atom,
+      doc: "the field on `type` the audits reference"
+    ],
+    autogenerate: [
+      type: {:tuple, [:atom, :atom, {:list, :any}]},
+      doc: "an MFA tuple used for generating both `inserted_by_id` and `updated_by_id`"
+    ]
+  ]
 
   @doc false
   defmacro __using__(_) do
@@ -19,22 +40,21 @@ defmodule EctoIRS.Schema do
   the subject from the current context.
 
   ## Options
-    * `:inserted_by` - the Ecto schema name of the field for insertion times or `false`
-    * `:updated_by` - the Ecto schema name of the field for update times or `false`
-    * `:references` - the field on `type` the audits reference.
-    * `:autogenerate` - a module-function-args tuple used for generating both `inserted_by_id`
-      and `updated_by_id`.
+
+  #{NimbleOptions.docs(@opts_schema)}
 
   All options can be pre-configured by setting `@audits_opts`.
   """
   defmacro audits(type, opts \\ []) do
+    opts_schema = @opts_schema
     quote bind_quoted: binding() do
-      audits = Keyword.merge(@audits_opts, opts)
+      merged_opts = Keyword.merge(@audits_opts, opts)
+      audits = NimbleOptions.validate!(merged_opts, opts_schema)
 
       autogen = audits[:autogenerate]
 
-      inserted_by = Keyword.get(audits, :inserted_by, :inserted_by)
-      updated_by = Keyword.get(audits, :updated_by, :updated_by)
+      inserted_by = audits[:inserted_by]
+      updated_by = audits[:updated_by]
       opts = if references = audits[:references], do: [references: references], else: []
 
       if inserted_by do
