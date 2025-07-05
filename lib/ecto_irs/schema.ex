@@ -1,6 +1,114 @@
 defmodule EctoIRS.Schema do
   @moduledoc """
   `Ecto.Schema` extensions for auditing capabilities.
+
+  This module provides the `audits/2` macro that automatically adds audit fields
+  to your Ecto schemas for tracking who created or modified records.
+
+  ## Usage
+
+  First, add `use EctoIRS.Schema` to your schema module, then use the `audits/2`
+  macro to generate audit fields:
+
+      defmodule MyApp.Post do
+        use Ecto.Schema
+        use EctoIRS.Schema
+
+        schema "posts" do
+          field :title, :string
+          field :content, :text
+          
+          # Generates :inserted_by and :updated_by associations
+          audits MyApp.User
+          
+          timestamps()
+        end
+      end
+
+  This will add `:inserted_by_id` and `:updated_by_id` fields to your schema,
+  along with `:inserted_by` and `:updated_by` associations that reference the
+  specified type.
+
+  ## Custom Field Names
+
+  You can customize the field names:
+
+      defmodule MyApp.Post do
+        use Ecto.Schema
+        use EctoIRS.Schema
+
+        schema "posts" do
+          field :title, :string
+          
+          audits MyApp.User,
+            inserted_by: :created_by,
+            updated_by: :modified_by
+        end
+      end
+
+  ## Disabling Fields
+
+  You can disable either field by setting it to `false`:
+
+      defmodule MyApp.Post do
+        use Ecto.Schema
+        use EctoIRS.Schema
+
+        schema "posts" do
+          field :title, :string
+          
+          # Only track who created, not who updated
+          audits MyApp.User, updated_by: false
+        end
+      end
+
+  ## Custom References
+
+  If your referenced schema uses a custom primary key, specify it with the
+  `:references` option:
+
+      defmodule MyApp.Post do
+        use Ecto.Schema
+        use EctoIRS.Schema
+
+        schema "posts" do
+          field :title, :string
+          
+          audits MyApp.User, references: :user_id
+        end
+      end
+
+  ## Autogeneration
+
+  You can configure automatic population of audit fields using the
+  `:autogenerate` option with an MFA tuple:
+
+      defmodule MyApp.Post do
+        use Ecto.Schema
+        use EctoIRS.Schema
+
+        schema "posts" do
+          field :title, :string
+          
+          audits MyApp.User, autogenerate: {MyApp.Context, :current_user_id, []}
+        end
+      end
+
+  ## Pre-configuration
+
+  You can pre-configure audit options using the `@audits_opts` module attribute:
+
+      defmodule MyApp.Post do
+        use Ecto.Schema
+        use EctoIRS.Schema
+
+        @audits_opts [autogenerate: {MyApp.Context, :current_user_id, []}]
+
+        schema "posts" do
+          field :title, :string
+          audits MyApp.User
+        end
+      end
   """
 
   @opts_schema [
@@ -47,6 +155,7 @@ defmodule EctoIRS.Schema do
   """
   defmacro audits(type, opts \\ []) do
     opts_schema = @opts_schema
+
     quote bind_quoted: binding() do
       merged_opts = Keyword.merge(@audits_opts, opts)
       audits = NimbleOptions.validate!(merged_opts, opts_schema)
